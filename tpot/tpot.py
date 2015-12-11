@@ -724,7 +724,7 @@ else:
         if max_depth < 1:
             max_depth = None
 
-        return train_model_and_predict(input_df, DecisionTreeClassifier, max_features=max_features, max_depth=max_depth, random_state=42)
+        return TPOT._train_model_and_predict(input_df, DecisionTreeClassifier, max_features=max_features, max_depth=max_depth, random_state=42)
 
     @staticmethod
     def random_forest(input_df, n_estimators, max_features):
@@ -758,7 +758,7 @@ else:
         elif max_features > len(input_df.columns) - 3:
             max_features = len(input_df.columns) - 3
 
-        return train_model_and_predict(input_df, RandomForestClassifier, n_estimators=n_estimators, max_features=max_features, random_state=42, n_jobs=-1)
+        return TPOT._train_model_and_predict(input_df, RandomForestClassifier, n_estimators=n_estimators, max_features=max_features, random_state=42, n_jobs=-1)
     
     @staticmethod
     def logistic_regression(input_df, C):
@@ -782,7 +782,7 @@ else:
             C = 0.0001
 
     
-        return train_model_and_predict(input_df, LogisticRegression, C=C, random_state=42)
+        return TPOT._train_model_and_predict(input_df, LogisticRegression, C=C, random_state=42)
 
     @staticmethod
     def svc(input_df, C):
@@ -805,7 +805,7 @@ else:
         if C <= 0.:
             C = 0.0001
 
-        return train_model_and_predict(input_df, SVC, C=C, random_state=42)
+        return TPOT._train_model_and_predict(input_df, SVC, C=C, random_state=42)
 
 
     @staticmethod
@@ -833,7 +833,7 @@ else:
         elif n_neighbors >= training_set_size:
             n_neighbors = training_set_size - 1
 
-        return train_model_and_predict(input_df, KNeighborsClassifier, n_neighbors=n_neighbors)
+        return TPOT._train_model_and_predict(input_df, KNeighborsClassifier, n_neighbors=n_neighbors)
 
     @staticmethod
     def gradient_boosting(input_df, learning_rate, n_estimators, max_depth):
@@ -869,9 +869,42 @@ else:
             max_depth = None
 
 
-        return train_model_and_predict(input_df, GradientBoostingClassifier, learning_rate=learning_rate, n_estimators=n_estimators, max_depth=max_depth, random_state=42)
+        return TPOT._train_model_and_predict(input_df, GradientBoostingClassifier, learning_rate=learning_rate, n_estimators=n_estimators, max_depth=max_depth, random_state=42)
     
+    @staticmethod
+    def _train_model_and_predict(input_df, model, **kwargs):
+        #Validate input
+        #If there are no features left (i.e., only 'class', 'group', and 'guess' remain in the DF), then there is nothing to do
+        if len(input_df.columns) == 3:
+            return input_df
 
+        input_df = input_df.copy()
+
+        training_features = input_df.loc[input_df['group'] == 'training'].drop(['class', 'group', 'guess'], axis=1).values
+        training_classes = input_df.loc[input_df['group'] == 'training', 'class'].values
+       
+        # Try to seed the random_state parameter if the model accepts it.
+        try:
+            clf = model(random_state=42,**kwargs)
+            clf.fit(training_features, training_classes)
+        except TypeError:
+            clf = model(**kwargs)
+            clf.fit(training_features, training_classes)
+        
+
+
+        all_features = input_df.drop(['class', 'group', 'guess'], axis=1).values
+        input_df.loc[:, 'guess'] = clf.predict(all_features)
+        
+
+        # Also store the guesses as a synthetic feature
+        sf_hash = '-'.join(sorted(input_df.columns.values))
+        sf_hash += '{}'.format(clf.__class__)
+        sf_hash += '-'.join(kwargs)
+        sf_identifier = 'SyntheticFeature-{}'.format(hashlib.sha224(sf_hash.encode('UTF-8')).hexdigest())
+        input_df.loc[:, sf_identifier] = input_df['guess'].values
+
+        return input_df
         
 
     @staticmethod
@@ -1415,38 +1448,7 @@ def main():
     if args.output_file != '':
         tpot.export(args.output_file)
 
-def train_model_and_predict(input_df, model, **kwargs):
-        #Validate input
-        #If there are no features left (i.e., only 'class', 'group', and 'guess' remain in the DF), then there is nothing to do
-        if len(input_df.columns) == 3:
-            return input_df
 
-        input_df = input_df.copy()
-
-        training_features = input_df.loc[input_df['group'] == 'training'].drop(['class', 'group', 'guess'], axis=1).values
-        training_classes = input_df.loc[input_df['group'] == 'training', 'class'].values
-        
-        try:
-            clf = model(random_state=42,**kwargs)
-            clf.fit(training_features, training_classes)
-        except TypeError:
-            clf = model(**kwargs)
-            clf.fit(training_features, training_classes)
-        
-
-
-        all_features = input_df.drop(['class', 'group', 'guess'], axis=1).values
-        input_df.loc[:, 'guess'] = clf.predict(all_features)
-        
-
-        # Also store the guesses as a synthetic feature
-        sf_hash = '-'.join(sorted(input_df.columns.values))
-        sf_hash += '{}'.format(clf.__class__)
-        sf_hash += '-'.join(kwargs)
-        sf_identifier = 'SyntheticFeature-{}'.format(hashlib.sha224(sf_hash.encode('UTF-8')).hexdigest())
-        input_df.loc[:, sf_identifier] = input_df['guess'].values
-
-        return input_df
 
 
 if __name__ == '__main__':
