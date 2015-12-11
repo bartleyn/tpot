@@ -727,14 +727,14 @@ else:
         return train_model_and_predict(input_df, DecisionTreeClassifier, max_features=max_features, max_depth=max_depth, random_state=42)
 
     @staticmethod
-    def random_forest(input_df, num_trees, max_features):
+    def random_forest(input_df, n_estimators, max_features):
         """Fits a random forest classifier
 
         Parameters
         ----------
         input_df: pandas.DataFrame {n_samples, n_features+['class', 'group', 'guess']}
             Input DataFrame for fitting the random forest
-        num_trees: int
+        n_estimators: int
             Number of trees in the random forest; must be a positive value
         max_features: int
             Number of features used to fit the decision tree; must be a positive value
@@ -746,10 +746,10 @@ else:
             Also adds the classifiers's predictions as a 'SyntheticFeature' column.
 
         """
-        if num_trees < 1:
-            num_trees = 1
-        elif num_trees > 500:
-            num_trees = 500
+        if n_estimators < 1:
+            n_estimators = 1
+        elif n_estimators > 500:
+            n_estimators = 500
 
         if max_features < 1:
             max_features = 'auto'
@@ -758,7 +758,7 @@ else:
         elif max_features > len(input_df.columns) - 3:
             max_features = len(input_df.columns) - 3
 
-        return train_model_and_predict(input_df, RandomForestClassifier, n_estimators=num_trees, max_features=max_features, random_state=42, n_jobs=-1)
+        return train_model_and_predict(input_df, RandomForestClassifier, n_estimators=n_estimators, max_features=max_features, random_state=42, n_jobs=-1)
     
     @staticmethod
     def logistic_regression(input_df, C):
